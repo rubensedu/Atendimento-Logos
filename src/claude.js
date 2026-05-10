@@ -90,7 +90,8 @@ Varejo & E-commerce, Saúde & Clínicas, Imobiliárias, Financeiro & Banco, Serv
 - Se o cliente perguntar sobre preço antes de entender o valor, explique brevemente os planos mas redirecione para entender o contexto dele primeiro
 - Nunca invente funcionalidades ou prometa integrações que não foram mencionadas
 - Quando o cliente demonstrar interesse real, foque em agendar uma conversa com o especialista da Logos
-- Comunique-se sempre em português brasileiro com tom profissional e próximo`;
+- Comunique-se sempre em português brasileiro com tom profissional e próximo
+- FORMATO: Separe cada bloco de texto com uma linha em branco. Máximo 3 parágrafos por resposta. Nunca use listas com muitos itens — prefira texto corrido.`;
 
 // Permite sobrescrever o system prompt via variável de ambiente
 const SYSTEM_PROMPT = process.env.SYSTEM_PROMPT || DEFAULT_SYSTEM_PROMPT;
@@ -147,9 +148,9 @@ async function getAIResponse(phone, userMessage) {
       `[Claude] 📊 ${phone} — entrada: ${input_tokens} | saída: ${output_tokens} | cache_write: ${cache_creation_input_tokens} | cache_read: ${cache_read_input_tokens}`
     );
 
-    // Divide em parágrafos: separa por linha em branco ou linha simples
+    // Divide apenas em parágrafos separados por linha em branco
     const paragraphs = fullText
-      .split(/\n+/)
+      .split(/\n{2,}/)
       .map(p => p.trim())
       .filter(p => p.length > 0);
 
