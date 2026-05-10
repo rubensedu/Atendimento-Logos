@@ -130,7 +130,7 @@ async function getAIResponse(phone, userMessage) {
     const response = await client.messages.create({
       model: 'claude-opus-4-7',
       thinking: { type: 'adaptive' },
-      max_tokens: 1024,
+      max_tokens: 4096,
       system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
       messages
     });
@@ -164,10 +164,11 @@ async function getAIResponse(phone, userMessage) {
     }
 
     if (error instanceof Anthropic.APIError) {
-      console.error(`[Claude] ❌ Erro da API (${error.status}): ${error.message}`);
+      console.error(`[Claude] ❌ Erro da API (${error.status}): ${error.message}`, error.error);
       throw error;
     }
 
+    console.error('[Claude] ❌ Erro inesperado:', error.message);
     throw error;
   }
 }
