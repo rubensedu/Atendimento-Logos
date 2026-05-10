@@ -14,6 +14,9 @@ async function processWebhook(data) {
     return;
   }
 
+  // Log temporário para diagnóstico
+  console.log('[Webhook] RAW:', JSON.stringify(data).slice(0, 300));
+
   // Ignora callbacks que não são de mensagens recebidas
   if (data.type !== 'ReceivedCallback') return;
 
