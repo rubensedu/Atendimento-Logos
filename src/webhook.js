@@ -31,12 +31,11 @@ async function processWebhook(data) {
   console.log(`[Webhook] 📨 ${senderName} (${phone}): ${userMessage}`);
 
   try {
-    let count = 0;
-    await getAIResponse(phone, userMessage, async (paragraph) => {
+    const paragraphs = await getAIResponse(phone, userMessage);
+    for (const paragraph of paragraphs) {
       await sendTextMessage(phone, paragraph);
-      count++;
-    });
-    console.log(`[Webhook] ✅ Resposta enviada em ${count} mensagem(ns) para ${senderName} (${phone})`);
+    }
+    console.log(`[Webhook] ✅ Resposta enviada em ${paragraphs.length} mensagem(ns) para ${senderName} (${phone})`);
   } catch (error) {
     console.error(`[Webhook] ❌ Erro ao atender ${phone}:`, error.message);
 

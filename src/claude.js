@@ -96,16 +96,13 @@ Varejo & E-commerce, Saúde & Clínicas, Imobiliárias, Financeiro & Banco, Serv
 const SYSTEM_PROMPT = process.env.SYSTEM_PROMPT || DEFAULT_SYSTEM_PROMPT;
 
 /**
- * Envia uma mensagem para o Claude via streaming.
- * Chama onParagraph(texto) assim que cada parágrafo fica pronto,
- * sem esperar a resposta completa — reduz drasticamente a latência percebida.
+ * Envia uma mensagem para o Claude e retorna array de parágrafos prontos para envio.
  *
  * @param {string} phone
  * @param {string} userMessage
- * @param {(paragraph: string) => Promise<void>} onParagraph - callback por parágrafo
- * @returns {Promise<void>}
+ * @returns {Promise<string[]>}
  */
-async function getAIResponse(phone, userMessage, onParagraph) {
+async function getAIResponse(phone, userMessage) {
   if (!conversations.has(phone)) {
     conversations.set(phone, []);
   }
@@ -129,51 +126,40 @@ async function getAIResponse(phone, userMessage, onParagraph) {
   });
 
   try {
-    const stream = await client.messages.stream({
+    const response = await client.messages.create({
       model: 'claude-haiku-4-5',
       max_tokens: 1024,
       system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
       messages
     });
 
-    let buffer = '';
-    let fullText = '';
-
-    for await (const event of stream) {
-      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-        buffer += event.delta.text;
-        fullText += event.delta.text;
-
-        // Envia cada parágrafo assim que detecta quebra dupla de linha
-        const parts = buffer.split(/\n{2,}/);
-        for (let i = 0; i < parts.length - 1; i++) {
-          const paragraph = parts[i].trim();
-          if (paragraph) await onParagraph(paragraph);
-        }
-        buffer = parts[parts.length - 1];
-      }
-    }
-
-    // Envia o que sobrou no buffer (último parágrafo sem \n\n no final)
-    const remaining = buffer.trim();
-    if (remaining) await onParagraph(remaining);
+    const fullText = response.content
+      .filter(block => block.type === 'text')
+      .map(block => block.text)
+      .join('');
 
     history.push({ role: 'assistant', content: fullText });
 
-    const finalMessage = await stream.finalMessage();
     const { input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens } =
-      finalMessage.usage;
+      response.usage;
 
     console.log(
       `[Claude] 📊 ${phone} — entrada: ${input_tokens} | saída: ${output_tokens} | cache_write: ${cache_creation_input_tokens} | cache_read: ${cache_read_input_tokens}`
     );
+
+    // Divide em parágrafos: separa por linha em branco ou linha simples
+    const paragraphs = fullText
+      .split(/\n+/)
+      .map(p => p.trim())
+      .filter(p => p.length > 0);
+
+    return paragraphs;
   } catch (error) {
     history.pop();
 
     if (error instanceof Anthropic.RateLimitError) {
       console.error('[Claude] ⚠️  Rate limit atingido');
-      await onParagraph('Estou com alta demanda no momento. Por favor, tente novamente em alguns instantes.');
-      return;
+      return ['Estou com alta demanda no momento. Por favor, tente novamente em alguns instantes.'];
     }
 
     if (error instanceof Anthropic.AuthenticationError) {
