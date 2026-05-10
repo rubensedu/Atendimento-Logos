@@ -32,8 +32,17 @@ async function processWebhook(data) {
 
   try {
     const response = await getAIResponse(phone, userMessage);
-    await sendTextMessage(phone, response);
-    console.log(`[Webhook] ✅ Resposta enviada para ${senderName} (${phone})`);
+    const paragraphs = response
+      .split(/\n{2,}/)
+      .map(p => p.trim())
+      .filter(p => p.length > 0);
+
+    for (const paragraph of paragraphs) {
+      await sendTextMessage(phone, paragraph);
+      // Pequena pausa entre mensagens para parecer mais natural
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    console.log(`[Webhook] ✅ Resposta enviada em ${paragraphs.length} mensagem(ns) para ${senderName} (${phone})`);
   } catch (error) {
     console.error(`[Webhook] ❌ Erro ao atender ${phone}:`, error.message);
 
