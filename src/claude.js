@@ -140,14 +140,8 @@ async function getAIResponse(phone, userMessage) {
 
   try {
     const response = await client.messages.create({
-      // Para reduzir custo e latência, considere trocar por 'claude-sonnet-4-6' ou 'claude-haiku-4-5'
-      model: 'claude-opus-4-7',
-      max_tokens: 4096,
-
-      // Adaptive thinking: o modelo decide quando e quanto raciocinar internamente.
-      // Os blocos de "thinking" são filtrados antes de enviar ao WhatsApp.
-      // Comente esta linha para desativar e reduzir latência.
-      thinking: { type: 'adaptive' },
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1024,
 
       // System prompt com cache_control: será cacheado após atingir o mínimo de tokens.
       // O cache reduz custo (~90%) e latência nas chamadas subsequentes.
