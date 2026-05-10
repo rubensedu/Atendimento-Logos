@@ -128,7 +128,8 @@ async function getAIResponse(phone, userMessage) {
 
   try {
     const response = await client.messages.create({
-      model: 'claude-haiku-4-5',
+      model: 'claude-opus-4-7',
+      thinking: { type: 'adaptive' },
       max_tokens: 1024,
       system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
       messages
