@@ -30,4 +30,21 @@ app.listen(PORT, () => {
   console.log(`✅ Bot de atendimento rodando na porta ${PORT}`);
   console.log(`📌 Webhook disponível em: POST http://localhost:${PORT}/webhook`);
   console.log(`❤️  Health check em:      GET  http://localhost:${PORT}/health`);
+
+  // Pinga o próprio servidor a cada 4 minutos para evitar cold start no Railway
+  const selfUrl = process.env.RAILWAY_PUBLIC_DOMAIN
+    ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}/health`
+    : null;
+
+  if (selfUrl) {
+    const http = require('https');
+    setInterval(() => {
+      http.get(selfUrl, (res) => {
+        console.log(`[Keep-alive] ping → ${res.statusCode}`);
+      }).on('error', (e) => {
+        console.warn(`[Keep-alive] falha: ${e.message}`);
+      });
+    }, 4 * 60 * 1000);
+    console.log(`🔄 Keep-alive ativo → ${selfUrl}`);
+  }
 });
