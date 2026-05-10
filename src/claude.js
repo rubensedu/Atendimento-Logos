@@ -148,13 +148,7 @@ async function getAIResponse(phone, userMessage) {
       `[Claude] 📊 ${phone} — entrada: ${input_tokens} | saída: ${output_tokens} | cache_write: ${cache_creation_input_tokens} | cache_read: ${cache_read_input_tokens}`
     );
 
-    // Divide apenas em parágrafos separados por linha em branco
-    const paragraphs = fullText
-      .split(/\n{2,}/)
-      .map(p => p.trim())
-      .filter(p => p.length > 0);
-
-    return paragraphs;
+    return [fullText.trim()];
   } catch (error) {
     history.pop();
 
