@@ -4,6 +4,16 @@ const { getAIResponse } = require('./claude');
 const { sendTextMessage } = require('./zapi');
 
 async function processWebhook(data) {
+  // Loga status de entrega para diagnóstico
+  if (data.type === 'DeliveryCallback') {
+    if (data.error) {
+      console.error(`[Delivery] ❌ Falha na entrega para ${data.phone}: ${data.error}`);
+    } else {
+      console.log(`[Delivery] ✅ Entregue para ${data.phone} — zaapId: ${data.zaapId || 'N/A'}`);
+    }
+    return;
+  }
+
   // Ignora callbacks que não são de mensagens recebidas
   if (data.type !== 'ReceivedCallback') return;
 
