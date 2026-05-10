@@ -96,90 +96,84 @@ Varejo & E-commerce, Saúde & Clínicas, Imobiliárias, Financeiro & Banco, Serv
 const SYSTEM_PROMPT = process.env.SYSTEM_PROMPT || DEFAULT_SYSTEM_PROMPT;
 
 /**
- * Envia uma mensagem para o Claude mantendo o histórico da conversa por contato.
- * Aplica prompt caching no system prompt e no último turno para reduzir custos.
+ * Envia uma mensagem para o Claude via streaming.
+ * Chama onParagraph(texto) assim que cada parágrafo fica pronto,
+ * sem esperar a resposta completa — reduz drasticamente a latência percebida.
  *
- * @param {string} phone  - Número do contato (chave do histórico)
- * @param {string} userMessage - Mensagem do usuário
- * @returns {Promise<string>} - Resposta gerada pelo Claude
+ * @param {string} phone
+ * @param {string} userMessage
+ * @param {(paragraph: string) => Promise<void>} onParagraph - callback por parágrafo
+ * @returns {Promise<void>}
  */
-async function getAIResponse(phone, userMessage) {
+async function getAIResponse(phone, userMessage, onParagraph) {
   if (!conversations.has(phone)) {
     conversations.set(phone, []);
   }
 
   const history = conversations.get(phone);
-
-  // Adiciona a nova mensagem do usuário ao histórico
   history.push({ role: 'user', content: userMessage });
 
-  // Mantém o histórico dentro do limite descartando os turnos mais antigos
   while (history.length > MAX_TURNS * 2) {
     history.splice(0, 2);
   }
 
-  // Transforma o array de histórico para a API:
-  // - Coloca cache_control no último user message (cacheia system + todo o histórico anterior)
-  // - Mantém as demais mensagens como strings simples
   const messages = history.map((msg, index) => {
     const isLastUserMessage = index === history.length - 1 && msg.role === 'user';
     if (isLastUserMessage) {
       return {
         role: 'user',
-        content: [
-          {
-            type: 'text',
-            text: msg.content,
-            cache_control: { type: 'ephemeral' }
-          }
-        ]
+        content: [{ type: 'text', text: msg.content, cache_control: { type: 'ephemeral' } }]
       };
     }
     return msg;
   });
 
   try {
-    const response = await client.messages.create({
+    const stream = await client.messages.stream({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
-
-      // System prompt com cache_control: será cacheado após atingir o mínimo de tokens.
-      // O cache reduz custo (~90%) e latência nas chamadas subsequentes.
-      system: [
-        {
-          type: 'text',
-          text: SYSTEM_PROMPT,
-          cache_control: { type: 'ephemeral' }
-        }
-      ],
-
+      system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
       messages
     });
 
-    // Filtra apenas os blocos de texto (ignora blocos de "thinking")
-    const assistantText = response.content
-      .filter(block => block.type === 'text')
-      .map(block => block.text)
-      .join('');
+    let buffer = '';
+    let fullText = '';
 
-    // Persiste a resposta no histórico como string simples
-    history.push({ role: 'assistant', content: assistantText });
+    for await (const event of stream) {
+      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+        buffer += event.delta.text;
+        fullText += event.delta.text;
 
+        // Envia cada parágrafo assim que detecta quebra dupla de linha
+        const parts = buffer.split(/\n{2,}/);
+        for (let i = 0; i < parts.length - 1; i++) {
+          const paragraph = parts[i].trim();
+          if (paragraph) await onParagraph(paragraph);
+        }
+        buffer = parts[parts.length - 1];
+      }
+    }
+
+    // Envia o que sobrou no buffer (último parágrafo sem \n\n no final)
+    const remaining = buffer.trim();
+    if (remaining) await onParagraph(remaining);
+
+    history.push({ role: 'assistant', content: fullText });
+
+    const finalMessage = await stream.finalMessage();
     const { input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens } =
-      response.usage;
+      finalMessage.usage;
 
     console.log(
       `[Claude] 📊 ${phone} — entrada: ${input_tokens} | saída: ${output_tokens} | cache_write: ${cache_creation_input_tokens} | cache_read: ${cache_read_input_tokens}`
     );
-
-    return assistantText;
   } catch (error) {
-    // Remove a mensagem do usuário adicionada antes da falha
     history.pop();
 
     if (error instanceof Anthropic.RateLimitError) {
       console.error('[Claude] ⚠️  Rate limit atingido');
-      return 'Estou com alta demanda no momento. Por favor, tente novamente em alguns instantes.';
+      await onParagraph('Estou com alta demanda no momento. Por favor, tente novamente em alguns instantes.');
+      return;
     }
 
     if (error instanceof Anthropic.AuthenticationError) {
